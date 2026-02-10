@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Grocery Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #eef2f5; text-align: center; padding: 20px; }
+        .card { background: white; max-width: 500px; margin: auto; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        
+        ul { list-style: none; padding: 0; text-align: left; max-height: 400px; overflow-y: auto; }
+        
+        li { 
+            background: #f8f9fa; 
+            border-bottom: 1px solid #ddd; 
+            padding: 15px; 
+            margin: 5px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-radius: 8px; 
+        }
+
+        .item-info { display: flex; flex-direction: column; }
+        .item-name { font-weight: bold; color: #333; }
+        .item-details { font-size: 0.85em; color: #666; }
+
+        .price-tag { font-weight: bold; color: #2ecc71; font-size: 1.1em; }
+        
+        /* Summary Box Styles */
+        .summary-box {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .summary-item span { display: block; font-size: 0.8em; opacity: 0.8; }
+        .summary-item strong { font-size: 1.4em; }
+
+        button { background: #e74c3c; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 15px; width: 100%; }
+        button:hover { background: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🛒 Live Grocery List</h1>
+        
+        <ul id="grocery-list">
+            <li style="text-align:center; display:block;">Waiting for detections...</li>
+        </ul>
+
+        <div class="summary-box">
+            <div class="summary-item">
+                <span>Total Cost</span>
+                <strong id="total-price">0.00</strong>
+            </div>
+            <div class="summary-item">
+                <span>Total Weight</span>
+                <strong id="total-weight">0.00 kg</strong>
+            </div>
+        </div>
+
+        <button onclick="clearList()">🗑 Clear List</button>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // REPLACE THIS WITH YOUR PC'S IP ADDRESS
+        const SERVER_IP = "192.168.100.8"; 
+        const PORT = "8000";
+
+        // --- DATABASE MAP ---
+        // This maps the raw detection names to pretty names, prices ($), and weights (kg)
+        const itemDatabase = {
+            "Water_bottle":  { name: "علبة ماء", price: 0.50, weight: 0.50 },
+            "Noodles":       { name: "اندومي", price: 1.5, weight: 0.10 },
+            "Grap_juice":   { name: "عصير عنب", price: 1.75, weight: 1.00 },
+            "Milk":          { name: "حليب", price: 1.5, weight: 1.00 },
+            "Kinza_cola":  { name: "كينزا كولا", price: 2, weight: 0.33 },
+            "Kinza_citrus":    { name: "كينزا حمضيات", price: 2, weight: 0.33 },
+            "Chips":   { name: "بطاطس ليز", price: 1.00, weight: 0.40 },
+            "Kitkat":        { name: "كيت كات", price: 1.75, weight: 0.05 }
+        };
+
+        async function fetchItems() {
+            try {
+                // Fetch simple list of strings from server
+                const response = await fetch(`http://${SERVER_IP}:${PORT}/api/items`);
+                const rawItems = await response.json();
+                
+                const list = document.getElementById('grocery-list');
+                
+                // Reset totals
+                let totalPrice = 0;
+                let totalWeight = 0;
+                let htmlContent = "";
+
+                if (rawItems.length === 0) {
+                    htmlContent = `<li style="text-align:center; display:block; color:#999;">Scan items to add them...</li>`;
+                } else {
+                    rawItems.forEach(rawName => {
+                        // Look up item in our database, or use defaults if unknown
+                        const data = itemDatabase[rawName] || { name: rawName, price: 0, weight: 0 };
+
+                        // Add to totals
+                        totalPrice += data.price;
+                        totalWeight += data.weight;
+
+                        // Build HTML
+                        htmlContent += `
+                            <li>
+                                <div class="item-info">
+                                    <span class="item-name">${data.name}</span>
+                                    <span class="item-details"> ${data.weight.toFixed(2)}kg</span>
+                                </div>
+                                <span class="price-tag">ريال ${data.price.toFixed(2)}</span>
+                            </li>
+                        `;
+                    });
+                }
+
+                // Update DOM
+                list.innerHTML = htmlContent;
+                document.getElementById('total-price').innerText = "ريال" + totalPrice.toFixed(2);
+                document.getElementById('total-weight').innerText = totalWeight.toFixed(2) + " kg";
+
+            } catch (err) { 
+                console.error("Connection Error:", err); 
+            }
+        }
+
+        async function clearList() {
+            // FIXED: Now uses SERVER_IP instead of localhost so it works on phone
+            await fetch(`http://${SERVER_IP}:${PORT}/api/clear`, { method: 'POST' });
+            fetchItems(); 
+        }
+
+        // Refresh every 1 second for snappier UI
+        setInterval(fetchItems, 1000); 
+    </script>
+</body>
+</html>
